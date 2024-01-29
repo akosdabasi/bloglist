@@ -1,0 +1,18 @@
+GET http://localhost:3003/api/blogs/
+
+###
+GET http://localhost:3003/api/blogs/65b68496882c1b02c01d15c4
+
+###
+POST http://localhost:3003/api/blogs/ HTTP/1.1
+content-type: application/json
+
+{
+  "title": "You wont beleive this",
+  "author": "Akos Dabasi",
+  "url": "https://myurl.com",
+  "likes": 5
+}         
+
+###
+DELETE http://localhost:3003/api/blogs/65b68496882c1b02c01d15c7dd
