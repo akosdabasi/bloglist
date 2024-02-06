@@ -18,4 +18,20 @@ blogsRouter.post('/', async (request, response) =>
   response.status(201).json(newBlog);
 })
 
+blogsRouter.put('/:id', async (request, response) => 
+{
+  const body = request.body;
+  
+  const blog = await Blog.findByIdAndUpdate(request.params.id, {likes: body.likes}, {new: true});
+   
+  response.status(201).json(blog);
+})
+
+blogsRouter.delete('/:id', async (request, response) => 
+{
+  const blog = Blog.findByIdAndDelete(request.params.id);
+  if(blog) response.status(204).send();
+  else response.status(404).send(`document doesn't exist`);
+})
+
 module.exports = blogsRouter

@@ -3,143 +3,177 @@ const supertest = require('supertest')
 const app = require('../app')
 const Blog = require('../models/blog')
 
-mongoose.set("bufferTimeoutMS", 10000)
-const api = supertest(app)
+mongoose.set("bufferTimeoutMS", 10000);
+const api = supertest(app);
 
-const testBlogs = [
+/* Initializing tests*/
+
+const testBlogs = 
+[
   {
-    _id: "5a422a851b54a676234d17f7",
     title: "React patterns",
     author: "Michael Chan",
     url: "https://reactpatterns.com/",
     likes: 7,
-    __v: 0
   },
   {
-    _id: "5a422aa71b54a676234d17f8",
     title: "Go To Statement Considered Harmful",
     author: "Edsger W. Dijkstra",
     url: "http://www.u.arizona.edu/~rubinson/copyright_violations/Go_To_Considered_Harmful.html",
     likes: 5,
-    __v: 0
   },
   {
-    _id: "5a422b3a1b54a676234d17f9",
     title: "Canonical string reduction",
     author: "Edsger W. Dijkstra",
     url: "http://www.cs.utexas.edu/~EWD/transcriptions/EWD08xx/EWD808.html",
     likes: 12,
-    __v: 0
   },
   {
-    _id: "5a422b891b54a676234d17fa",
     title: "First class tests",
     author: "Robert C. Martin",
     url: "http://blog.cleancoder.com/uncle-bob/2017/05/05/TestDefinitions.htmll",
     likes: 10,
-    __v: 0
   },
   {
-    _id: "5a422ba71b54a676234d17fb",
     title: "TDD harms architecture",
     author: "Robert C. Martin",
     url: "http://blog.cleancoder.com/uncle-bob/2017/03/03/TDD-Harms-Architecture.html",
     likes: 0,
-    __v: 0
   },
   {
-    _id: "5a422bc61b54a676234d17fc",
     title: "Type wars",
     author: "Robert C. Martin",
     url: "http://blog.cleancoder.com/uncle-bob/2016/05/01/TypeWars.html",
     likes: 2,
-    __v: 0
   }  
-]
+];
 
 beforeEach(async ()=>
 {
   await Blog.deleteMany({});
   await Blog.create(testBlogs);
-})
+});
 
-test('blogs are returned as json', async () => 
+
+describe('blogs GET api tests', ()=>
 {
-  await api
-    .get('/api/blogs')
-    .expect(200)
-    .expect('Content-Type', /application\/json/);
-})
 
-test('there are 6 blogs', async () => {
-  const response = await api.get('/api/blogs')
+  test('blogs are returned as json', async () => 
+  {
+    await api
+      .get('/api/blogs')
+      .expect(200)
+      .expect('Content-Type', /application\/json/);
+  });
 
-  expect(response.body).toHaveLength(testBlogs.length)
-})
+  test('there are 6 blogs', async () => 
+  {
+    const response = await api.get('/api/blogs');
+    expect(response.body).toHaveLength(testBlogs.length);
+  });
 
-test('a specific blog is within the returned blogs', async () => {
-  const response = await api.get('/api/blogs')
+  test('a specific blog is within the returned blogs', async () => 
+  {
+    const response = await api.get('/api/blogs');
+    const blogTitles = response.body.map(blog => blog.title);
+    expect(blogTitles).toContainEqual(testBlogs[0].title);
+    expect(blogTitles).toContainEqual(testBlogs[4].title);
+  })
+});
+
+
+describe('blogs POST API tests', ()=>
+{
+  test('new posts can be added', async () => 
+  {
+    const newPost = 
+    {
+      title: "React hooks",
+      author: "Michael Chan",
+      url: "https://reactpatterns.com/",
+      likes: 10,
+    }
+
+    const response = await api
+      .post('/api/blogs')
+      .send(newPost)
+      .expect(201)
+      .expect('Content-Type', /application\/json/);    
+    
+    const id = response.body.id;
+    expect(response.body).toEqual({id, ...newPost});
+    
+    const allBlogs = await api.get('/api/blogs');
+    expect(allBlogs.body).toHaveLength(testBlogs.length+1);
+    expect(allBlogs.body).toContainEqual({id, ...newPost});
+  })
+
+  test('if likes is missing it will default to 0', async () => 
+  {
+    const newPost = 
+    {
+      title: "React hooks",
+      author: "Michael Chan",
+      url: "https://reactpatterns.com/",
+    }
+    const response = await api
+      .post('/api/blogs')
+      .send(newPost)
+      .expect(201)
+      .expect('Content-Type', /application\/json/);    
   
-  const titles = response.body.map(blog => blog.title);
-  expect(titles).toContain(testBlogs[0].title)
+    expect(response.body.likes).toBe(0);
+  })
+
+  test('if url or title is missing, server return 400 - bad request', async () => 
+  {
+    const newPostTitle = 
+    {
+      author: "Michael Chan",
+      url: "https://reactpatterns.com/",
+    }
+
+    await api
+      .post('/api/blogs')
+      .send(newPostTitle)
+      .expect(400);
+  })
 })
 
-test('there is an \'id\' field', async () => {
-  const response = await api.get('/api/blogs')
+describe('blogs DELETE API tests', ()=>
+{
+  test('blog can be deleted', async () => 
+  {
+    let response = await api.get('/api/blogs').expect(200);
+    const blogToDelete = response.body[2];
+
+    await api.delete(`/api/blogs/${blogToDelete.id}`).expect(204);
   
-  expect(response.body[0].id).toBeDefined();
+    response = await api.get('/api/blogs').expect(200);
+    expect(response).not.toContainEqual(blogToDelete);
+  
+  })
 })
 
-test('new posts can be added', async () => {
-  const newPost = 
+describe('blogs PUT API tests', ()=>
+{
+  test('if likes field can be updated', async () => 
   {
-    title: "React hooks",
-    author: "Michael Chan",
-    url: "https://reactpatterns.com/",
-    likes: 10,
-  }
-  const response = await api
-    .post('/api/blogs')
-    .send(newPost)
-    .expect(201)
-    .expect('Content-Type', /application\/json/);    
+    let response = await api.get('/api/blogs');
+    const testBlog = response.body[1];
+    const requestBody = 
+    {
+      likes: 50,
+    }
 
-  const allPost = await api.get('/api/blogs');
-  expect(response.body.id).toBeDefined();
-  expect(response.body.title).toBe(newPost.title);
-  expect(response.body.likes).toBe(newPost.likes);
-  expect(allPost.body.length).toBe(testBlogs.length+1);
+    response = await api
+      .put(`/api/blogs/${testBlog.id}`)
+      .send(requestBody);
+  
+    expect(response.body.likes).toBe(50);
+  })
 })
 
-test('if likes is missing it will default to 0', async () => {
-  const newPost = 
-  {
-    title: "React hooks",
-    author: "Michael Chan",
-    url: "https://reactpatterns.com/",
-  }
-  const response = await api
-    .post('/api/blogs')
-    .send(newPost)
-    .expect(201)
-    .expect('Content-Type', /application\/json/);    
-
-  expect(response.body.likes).toBe(0);
-})
-
-test('if url or title is missing, server return 400 - bad request', async () => {
-  const newPostTitle = 
-  {
-    author: "Michael Chan",
-    url: "https://reactpatterns.com/",
-  }
-  const response = await api
-    .post('/api/blogs')
-    .send(newPostTitle);
-
-  expect(response.status).toBe(400);
-
-})
 
 afterAll(async () => {
   await mongoose.connection.close()

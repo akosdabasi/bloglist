@@ -16,3 +16,18 @@ content-type: application/json
 
 ###
 DELETE http://localhost:3003/api/blogs/65b68496882c1b02c01d15c7dd
+
+//USERS
+
+###
+GET http://localhost:3003/api/users/
+
+###
+POST http://localhost:3003/api/users/ HTTP/1.1
+content-type: application/json
+
+{
+  "name": "Akos Dabasi",
+  "username": "akosdabasi",
+  "password": "root"
+}         
