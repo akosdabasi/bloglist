@@ -2,13 +2,15 @@ const mongoose = require('mongoose')
 const supertest = require('supertest')
 const app = require('../app')
 const Blog = require('../models/blog')
+const User = require('../models/user')
+const bcrypt = require('bcrypt')
 
 mongoose.set("bufferTimeoutMS", 10000);
 const api = supertest(app);
 
 /* Initializing tests*/
 
-const testBlogs = 
+const seedBlogs = 
 [
   {
     title: "React patterns",
@@ -48,10 +50,67 @@ const testBlogs =
   }  
 ];
 
-beforeEach(async ()=>
+const seedUsers = 
+[
+  {
+    name: "Ákos Dabasi",
+    username:"akosdabasi",
+    password:"root"
+  },
+  {
+    name: "Zsolt Nagy",
+    username:"zsoltnagy",
+    password:"root1"
+  },
+  {
+    name: "Márk Kiss",
+    username:"márkkiss",
+    password:"root3"
+  },
+  {
+    name: "Gergő Sisak",
+    username:"gergősisak",
+    password:"root4"
+  }
+];
+
+let testToken;
+let testToken2;
+let testBlogs;
+let testUsers;
+beforeAll(async ()=>
 {
+  await User.deleteMany({});
+  const seedUsersHashed = await Promise.all(seedUsers.map(async user => {
+    user.password = await bcrypt.hash(user.password, 10);
+    return user;
+  }));
+
+  testUsers = await User.create(seedUsersHashed);
+  
+  let {username, password} = seedUsers[0];
+  let response = await api.post('/login').send({username, password});
+  testToken = response.body.accessToken;
+  
+  ({username, password} = seedUsers[0]);
+  response = await api.post('/login').send({username, password});
+  testToken2 = response.body.accessToken;
+})
+beforeEach(async ()=>
+{ 
+
   await Blog.deleteMany({});
-  await Blog.create(testBlogs);
+  testBlogs = await Blog.create(
+    [
+      {...seedBlogs[0], user: testUsers[0]._id },
+      {...seedBlogs[1], user: testUsers[1]._id },
+      {...seedBlogs[2], user: testUsers[2]._id },
+      {...seedBlogs[3], user: testUsers[3]._id },
+      {...seedBlogs[4], user: testUsers[0]._id },
+      {...seedBlogs[5], user: testUsers[0]._id },
+    ]
+  );
+  
 });
 
 
@@ -89,40 +148,22 @@ describe('blogs POST API tests', ()=>
     const newPost = 
     {
       title: "React hooks",
-      author: "Michael Chan",
       url: "https://reactpatterns.com/",
-      likes: 10,
     }
 
     const response = await api
       .post('/api/blogs')
+      .set('Authorization', `Bearer ${testToken}`)
       .send(newPost)
       .expect(201)
       .expect('Content-Type', /application\/json/);    
     
-    const id = response.body.id;
-    expect(response.body).toEqual({id, ...newPost});
+    expect(response.body.author).toEqual('Ákos Dabasi');
     
     const allBlogs = await api.get('/api/blogs');
     expect(allBlogs.body).toHaveLength(testBlogs.length+1);
-    expect(allBlogs.body).toContainEqual({id, ...newPost});
-  })
-
-  test('if likes is missing it will default to 0', async () => 
-  {
-    const newPost = 
-    {
-      title: "React hooks",
-      author: "Michael Chan",
-      url: "https://reactpatterns.com/",
-    }
-    const response = await api
-      .post('/api/blogs')
-      .send(newPost)
-      .expect(201)
-      .expect('Content-Type', /application\/json/);    
-  
-    expect(response.body.likes).toBe(0);
+    const titles = allBlogs.body.map(blog => blog.title);
+    expect(titles).toContain(newPost.title);
   })
 
   test('if url or title is missing, server return 400 - bad request', async () => 
@@ -136,23 +177,41 @@ describe('blogs POST API tests', ()=>
     await api
       .post('/api/blogs')
       .send(newPostTitle)
+      .set('Authorization', `Bearer ${testToken}`)
       .expect(400);
   })
 })
 
 describe('blogs DELETE API tests', ()=>
 {
-  test('blog can be deleted', async () => 
+  test('blog can be deleted by owner', async () => 
   {
-    let response = await api.get('/api/blogs').expect(200);
-    const blogToDelete = response.body[2];
+    const blogToDelete = testBlogs[0];
+    await api
+      .delete(`/api/blogs/${blogToDelete._id}`)
+      .set('Authorization', `Bearer ${testToken}`)
+      .expect(204);
+    
+    const response = await api
+      .get('/api/blogs')
+      .expect(200);
 
-    await api.delete(`/api/blogs/${blogToDelete.id}`).expect(204);
-  
-    response = await api.get('/api/blogs').expect(200);
-    expect(response).not.toContainEqual(blogToDelete);
-  
+    const titles = response.body.map(blog => blog.title);
+    expect(titles).not.toContain(blogToDelete.title);
+    expect(titles).toHaveLength(testBlogs.length - 1);
   })
+
+  test('blog can not be deleted by someone other than the owner', async () => 
+  {
+    const blogToDelete = testBlogs[2];
+    await api
+      .delete(`/api/blogs/${blogToDelete._id}`)
+      .set('Authorization', `Bearer ${testToken2}`)
+      .expect(401);
+    
+  })
+
+
 })
 
 describe('blogs PUT API tests', ()=>

@@ -1,11 +1,13 @@
-GET http://localhost:3003/api/blogs/
+@baseUrl = http://localhost:3003
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6Inpzb2x0bmFneSIsImlkIjoiNjVjNDgxODliMjQzZGUyMTcxOGM4N2RmIiwiaWF0IjoxNzA3Mzc3NDU2fQ.cAHsFiLYTr2adHGXM4mR_KARhwck17IBaD4gfsz76iw
+
+//BLOGS
+GET {{baseUrl}}/api/blogs/
 
 ###
-GET http://localhost:3003/api/blogs/65b68496882c1b02c01d15c4
-
-###
-POST http://localhost:3003/api/blogs/ HTTP/1.1
+POST {{baseUrl}}/api/blogs/ HTTP/1.1
 content-type: application/json
+authorization: Bearer {{token}}
 
 {
   "title": "You wont beleive this",
@@ -15,19 +17,32 @@ content-type: application/json
 }         
 
 ###
-DELETE http://localhost:3003/api/blogs/65b68496882c1b02c01d15c7dd
-
+DELETE {{baseUrl}}/api/blogs/65c48342aae33fbc06d4193b
+authorization: Bearer {{token}}
+//---------------------------------------------------------------------------------------
 //USERS
 
 ###
-GET http://localhost:3003/api/users/
+GET {{baseUrl}}/api/users/
 
 ###
-POST http://localhost:3003/api/users/ HTTP/1.1
+POST {{baseUrl}}/api/users/ HTTP/1.1
+content-type: application/json
+
+
+{
+  "name": "Test User",
+  "username": "testuser",
+  "password": "root"
+}         
+//-------------------------------------------------------------------------------------
+//LOGIN
+
+###
+POST {{baseUrl}}/login HTTP/1.1
 content-type: application/json
 
 {
-  "name": "Akos Dabasi",
-  "username": "akosdabasi",
-  "password": "root"
+  "username": "zsoltnagy",
+  "password": "root1"
 }         

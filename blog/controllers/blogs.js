@@ -1,20 +1,36 @@
 const blogsRouter = require('express').Router();
 const Blog = require('../models/blog');
 
-
 blogsRouter.get('/', async (request, response) => 
 {
-  const blogs = await Blog.find({});
+  const blogs = await Blog.find({}).populate('user', {username: 1});
   response.json(blogs);
 })
 
 blogsRouter.post('/', async (request, response) => 
 {
-  const body = request.body;
-  if(!body.title || !body.url)
+
+  const user = request.user;
+  const {title, url} = request.body;
+  
+  if(user === null)
+    return response.status(401).json({error: "authentication failed"});
+
+  if(!title || !url)
    return response.status(400).end();
 
-  const newBlog = await Blog.create({likes: 0, ...request.body}); 
+  const blogToCreate = 
+  {
+    author: user.name,
+    title,
+    url,
+    likes: 0,
+    user: user._id
+  }
+
+  const newBlog = await Blog.create(blogToCreate);
+  user.blogs = user.blogs.concat(newBlog._id);
+  await user.save();
   response.status(201).json(newBlog);
 })
 
@@ -29,9 +45,18 @@ blogsRouter.put('/:id', async (request, response) =>
 
 blogsRouter.delete('/:id', async (request, response) => 
 {
-  const blog = Blog.findByIdAndDelete(request.params.id);
-  if(blog) response.status(204).send();
-  else response.status(404).send(`document doesn't exist`);
+  const user = request.user;
+  const blog = await Blog.findById(request.params.id);
+
+  if(!blog)
+    return response.status(404).send(`document doesn't exist`);
+
+  if(blog.user.toString() !== user._id.toString())
+    return response.status(401).send('not authorized');
+
+  await blog.deleteOne();
+  response.status(204).send('blog is deleted');
+ 
 })
 
 module.exports = blogsRouter
